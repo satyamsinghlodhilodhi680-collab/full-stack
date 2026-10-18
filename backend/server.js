@@ -17,15 +17,16 @@ import cors from "cors";
 const app = express();
 
 
+import cors from "cors";
+
 app.use(cors({
     origin: [
         "http://localhost:5173",
+        "https://gao-village-eight.vercel.app",
         "https://frontend-eta-nine-34.vercel.app"
     ],
     credentials: true
 }));
-
-
 
 
 
@@ -42,6 +43,9 @@ app.use("/api/events", eventRoutes);
 
 app.use("/api/applications", applicationRoutes);
 app.use("/api/profile-photo", profilePhotoRoutes);
+
+
+
 const startServer = async () => {
     try {
         await connectDB();
