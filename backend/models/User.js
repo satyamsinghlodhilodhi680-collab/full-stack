@@ -46,7 +46,15 @@ emailOtp: {
 emailOtpExpires: {
     type: Date,
     default: null
-}
+},
+resetPasswordOtp: {
+    type: String,
+    default: null
+},
+resetPasswordOtpExpires: {
+    type: Date,
+    default: null
+},
 }, { timestamps: true });
 
 const User = mongoose.model("User", userSchema);

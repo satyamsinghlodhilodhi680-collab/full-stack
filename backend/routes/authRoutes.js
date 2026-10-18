@@ -1,6 +1,6 @@
 
 import express from "express";
-import { getMe, login, logout, register,  verifyEmailOtp ,updateProfile,changePassword} from "../controllers/authController.js";
+import { getMe, login, logout, register,  verifyEmailOtp ,updateProfile,changePassword,resendOtp,forgotPassword,resetPassword} from "../controllers/authController.js";
 import authMiddleware from "../middlewere/authMiddleware.js";
 import adminMiddleware from "../middlewere/adminMiddleware.js";
 import { adminDashboard } from "../controllers/adminController.js";
@@ -11,6 +11,9 @@ router.post("/login",login);
 router.post("/logout",logout)
 
 router.post("/verify-otp", verifyEmailOtp);
+router.post("/resend-otp", resendOtp);
+router.post("/forgot-password", forgotPassword);
+router.post("/reset-password", resetPassword);
 
 router.get('/get-me',authMiddleware,getMe)
 

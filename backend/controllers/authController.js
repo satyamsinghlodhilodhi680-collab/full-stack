@@ -479,3 +479,207 @@ export const changePassword = async (req, res) => {
         });
     }
 };
+
+
+/* RESEND REGISTRATION OTP */
+export const resendOtp = async (req, res) => {
+    try {
+        const email = req.body.email?.trim().toLowerCase();
+
+        if (!email) {
+            return res.status(400).json({
+                success: false,
+                message: "Email is required"
+            });
+        }
+
+        const user = await User.findOne({ email });
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "Account not found. Please register first."
+            });
+        }
+
+        if (user.isVerified) {
+            return res.status(400).json({
+                success: false,
+                message: "Email is already verified. Please login."
+            });
+        }
+
+        const otp = generateOtp();
+
+        user.emailOtp = hashOtp(otp);
+        user.emailOtpExpires = new Date(Date.now() + 10 * 60 * 1000);
+
+        await user.save();
+        await sendOtpEmail(user.email, otp);
+
+        return res.status(200).json({
+            success: true,
+            message: "A new verification OTP has been sent to your email."
+        });
+    } catch (error) {
+        console.error("Resend OTP error:", error.message);
+
+        return res.status(500).json({
+            success: false,
+            message: "Could not send OTP. Please try again later."
+        });
+    }
+};
+
+
+/* FORGOT PASSWORD — SEND RESET OTP */
+export const forgotPassword = async (req, res) => {
+    try {
+        const email = req.body.email?.trim().toLowerCase();
+
+        if (!email) {
+            return res.status(400).json({
+                success: false,
+                message: "Email is required"
+            });
+        }
+
+        const user = await User.findOne({
+            email,
+            isVerified: true
+        });
+
+        // Avoid revealing whether an account exists.
+        if (!user) {
+            return res.status(200).json({
+                success: true,
+                message: "If a verified account exists, a reset OTP will be sent."
+            });
+        }
+
+        const otp = generateOtp();
+
+        user.resetPasswordOtp = hashOtp(otp);
+        user.resetPasswordOtpExpires =
+            new Date(Date.now() + 10 * 60 * 1000);
+
+        await user.save();
+
+        try {
+            await transporter.sendMail({
+                from: `"Gao-Connect" <${process.env.EMAIL_USER}>`,
+                to: user.email,
+                subject: "Gao-Connect password reset OTP",
+                text: `Your password reset OTP is ${otp}. It expires in 10 minutes. Do not share this code with anyone.`
+            });
+        } catch (emailError) {
+            user.resetPasswordOtp = null;
+            user.resetPasswordOtpExpires = null;
+            await user.save();
+
+            throw emailError;
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "If a verified account exists, a reset OTP will be sent."
+        });
+    } catch (error) {
+        console.error("Forgot password error:", error.message);
+
+        return res.status(500).json({
+            success: false,
+            message: "Could not process the request. Please try again later."
+        });
+    }
+};
+
+
+/* RESET PASSWORD — VERIFY OTP AND SAVE NEW PASSWORD */
+export const resetPassword = async (req, res) => {
+    try {
+        const { email, otp, newPassword, confirmPassword } = req.body;
+
+        if (
+            !email?.trim() ||
+            !otp?.trim() ||
+            !newPassword ||
+            !confirmPassword
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: "All fields are required"
+            });
+        }
+
+        if (!/^\d{6}$/.test(otp.trim())) {
+            return res.status(400).json({
+                success: false,
+                message: "Please enter a valid 6-digit OTP"
+            });
+        }
+
+        if (newPassword.length < 6) {
+            return res.status(400).json({
+                success: false,
+                message: "Password must be at least 6 characters"
+            });
+        }
+
+        if (newPassword !== confirmPassword) {
+            return res.status(400).json({
+                success: false,
+                message: "Passwords do not match"
+            });
+        }
+
+        const user = await User.findOne({
+            email: email.trim().toLowerCase(),
+            isVerified: true
+        });
+
+        if (
+            !user ||
+            !user.resetPasswordOtp ||
+            !user.resetPasswordOtpExpires ||
+            user.resetPasswordOtpExpires.getTime() < Date.now()
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid or expired reset OTP. Please request a new one."
+            });
+        }
+
+        const submittedHash = hashOtp(otp.trim());
+
+        const hashesMatch = crypto.timingSafeEqual(
+            Buffer.from(submittedHash, "hex"),
+            Buffer.from(user.resetPasswordOtp, "hex")
+        );
+
+        if (!hashesMatch) {
+            return res.status(400).json({
+                success: false,
+                message: "Incorrect OTP. Please try again."
+            });
+        }
+
+        user.password = await bcrypt.hash(newPassword, 10);
+        user.resetPasswordOtp = null;
+        user.resetPasswordOtpExpires = null;
+
+        await user.save();
+
+        return res.status(200).json({
+            success: true,
+            message: "Password reset successfully. You can now log in."
+        });
+    } catch (error) {
+        console.error("Reset password error:", error.message);
+
+        return res.status(500).json({
+            success: false,
+            message: "Could not reset password. Please try again."
+        });
+    }
+};

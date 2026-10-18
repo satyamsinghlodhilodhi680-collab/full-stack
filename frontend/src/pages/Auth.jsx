@@ -8,6 +8,8 @@ import "./Auth.css";
 function Auth() {
   const [isRegister, setIsRegister] = useState(false);
   const [isOtpVerification, setIsOtpVerification] = useState(false);
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const [isResetPassword, setIsResetPassword] = useState(false);
 
   const [form, setForm] = useState({
     firstName: "",
@@ -17,10 +19,16 @@ function Auth() {
   });
 
   const [otp, setOtp] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const navigate = useNavigate();
 
@@ -28,13 +36,18 @@ function Auth() {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const clearMessages = () => {
     setError("");
     setSuccess("");
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    clearMessages();
     setLoading(true);
 
     try {
+      // 1. Verify registration OTP
       if (isOtpVerification) {
         const response = await api.post("/auth/verify-otp", {
           email: form.email,
@@ -54,7 +67,55 @@ function Auth() {
 
           setSuccess("Email verified successfully! Ab login karo.");
         }
-      } else {
+      }
+
+      // 2. Request password reset OTP
+      else if (isForgotPassword) {
+        const response = await api.post("/auth/forgot-password", {
+          email: form.email
+        });
+
+        if (response.data.success) {
+          setIsForgotPassword(false);
+          setIsResetPassword(true);
+          setOtp("");
+          setNewPassword("");
+          setConfirmPassword("");
+
+          setSuccess(
+            response.data.message ||
+              "Agar verified account hai, toh reset OTP email par bheja jayega."
+          );
+        }
+      }
+
+      // 3. Reset password using OTP
+      else if (isResetPassword) {
+        const response = await api.post("/auth/reset-password", {
+          email: form.email,
+          otp,
+          newPassword,
+          confirmPassword
+        });
+
+        if (response.data.success) {
+          setIsResetPassword(false);
+          setIsRegister(false);
+          setIsOtpVerification(false);
+          setOtp("");
+          setNewPassword("");
+          setConfirmPassword("");
+          setForm((prev) => ({
+            ...prev,
+            password: ""
+          }));
+
+          setSuccess("Password reset successful! Ab naye password se login karo.");
+        }
+      }
+
+      // 4. Register or login
+      else {
         const endpoint = isRegister
           ? "/auth/register"
           : "/auth/login";
@@ -68,6 +129,7 @@ function Auth() {
         if (response.data.success) {
           if (isRegister) {
             setIsOtpVerification(true);
+            setOtp("");
             setSuccess(
               "OTP tumhare email par bhej diya gaya hai. Inbox aur Spam check karo."
             );
@@ -85,6 +147,30 @@ function Auth() {
       setLoading(false);
     }
   };
+
+  // Resend registration verification OTP
+  const handleResendOtp = async () => {
+    clearMessages();
+    setResending(true);
+
+    try {
+      const response = await api.post("/auth/resend-otp", {
+        email: form.email
+      });
+
+      if (response.data.success) {
+        setSuccess(response.data.message || "New OTP sent to your email.");
+      }
+    } catch (err) {
+      setError(
+        err.response?.data?.message || "OTP resend nahi ho paya."
+      );
+    } finally {
+      setResending(false);
+    }
+  };
+
+  const isRecoveryMode = isForgotPassword || isResetPassword;
 
   return (
     <div className="auth-page">
@@ -115,49 +201,84 @@ function Auth() {
           <span className="auth-welcome">
             {isOtpVerification
               ? "EMAIL VERIFICATION"
-              : isRegister
-                ? "GET STARTED"
-                : "WELCOME BACK"}
+              : isForgotPassword
+                ? "ACCOUNT RECOVERY"
+                : isResetPassword
+                  ? "RESET PASSWORD"
+                  : isRegister
+                    ? "GET STARTED"
+                    : "WELCOME BACK"}
           </span>
 
           <h2>
             {isOtpVerification
               ? "Verify your email"
-              : isRegister
-                ? "Create your account"
-                : "Login to your account"}
+              : isForgotPassword
+                ? "Forgot password?"
+                : isResetPassword
+                  ? "Create new password"
+                  : isRegister
+                    ? "Create your account"
+                    : "Login to your account"}
           </h2>
 
           <p className="auth-subtitle">
             {isOtpVerification
               ? `Enter the 6-digit OTP sent to ${form.email}.`
-              : isRegister
-                ? "Join your village community today."
-                : "Access your village services in one place."}
+              : isForgotPassword
+                ? "Enter your registered email to request a reset OTP."
+                : isResetPassword
+                  ? `Enter the reset OTP sent to ${form.email} and choose a new password.`
+                  : isRegister
+                    ? "Join your village community today."
+                    : "Access your village services in one place."}
           </p>
 
-          {!isOtpVerification && isRegister && (
-            <div className="auth-name-row">
+          {!isOtpVerification &&
+            !isResetPassword &&
+            isRegister && (
+              <div className="auth-name-row">
+                <input
+                  name="firstName"
+                  placeholder="First name"
+                  value={form.firstName}
+                  onChange={handleChange}
+                  autoComplete="given-name"
+                  required
+                />
+                <input
+                  name="lastName"
+                  placeholder="Last name"
+                  value={form.lastName}
+                  onChange={handleChange}
+                  autoComplete="family-name"
+                  required
+                />
+              </div>
+            )}
+
+          {!isOtpVerification && (
+            <>
+              <label htmlFor="auth-email">Email address</label>
               <input
-                name="firstName"
-                placeholder="First name"
-                value={form.firstName}
+                id="auth-email"
+                type="email"
+                name="email"
+                placeholder="you@example.com"
+                value={form.email}
                 onChange={handleChange}
+                autoComplete="email"
                 required
+                readOnly={isResetPassword}
               />
-              <input
-                name="lastName"
-                placeholder="Last name"
-                value={form.lastName}
-                onChange={handleChange}
-                required
-              />
-            </div>
+            </>
           )}
 
-          {isOtpVerification ? (
+          {(isOtpVerification || isResetPassword) && (
             <>
-              <label htmlFor="auth-otp">Email OTP</label>
+              <label htmlFor="auth-otp">
+                {isResetPassword ? "Password reset OTP" : "Email OTP"}
+              </label>
               <input
                 id="auth-otp"
                 type="text"
@@ -173,47 +294,112 @@ function Auth() {
                 required
               />
             </>
-          ) : (
+          )}
+
+          {!isForgotPassword &&
+            !isOtpVerification &&
+            !isResetPassword && (
+              <>
+                <label htmlFor="auth-password">Password</label>
+
+                <div className="auth-password-wrapper">
+                  <input
+                    id="auth-password"
+                    type={showPassword ? "text" : "password"}
+                    name="password"
+                    placeholder="Enter your password"
+                    value={form.password}
+                    onChange={handleChange}
+                    autoComplete={
+                      isRegister ? "new-password" : "current-password"
+                    }
+                    minLength={isRegister ? 6 : undefined}
+                    required
+                  />
+
+                  <button
+                    type="button"
+                    className="auth-password-toggle"
+                    onClick={() => setShowPassword(!showPassword)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
+                </div>
+              </>
+            )}
+
+          {isResetPassword && (
             <>
-              <label htmlFor="auth-email">Email address</label>
-              <input
-                id="auth-email"
-                type="email"
-                name="email"
-                placeholder="you@example.com"
-                value={form.email}
-                onChange={handleChange}
-                autoComplete="email"
-                required
-              />
-
-              <label htmlFor="auth-password">Password</label>
-
+              <label htmlFor="new-password">New password</label>
               <div className="auth-password-wrapper">
                 <input
-                  id="auth-password"
-                  type={showPassword ? "text" : "password"}
-                  name="password"
-                  placeholder="Enter your password"
-                  value={form.password}
-                  onChange={handleChange}
-                  autoComplete={
-                    isRegister ? "new-password" : "current-password"
-                  }
+                  id="new-password"
+                  type={showNewPassword ? "text" : "password"}
+                  placeholder="Enter new password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  autoComplete="new-password"
+                  minLength={6}
                   required
                 />
-
                 <button
                   type="button"
                   className="auth-password-toggle"
-                  onClick={() => setShowPassword(!showPassword)}
-                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  onClick={() => setShowNewPassword(!showNewPassword)}
+                  aria-label={showNewPassword ? "Hide password" : "Show password"}
                 >
-                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  {showNewPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
+
+              <label htmlFor="confirm-password">Confirm new password</label>
+              <div className="auth-password-wrapper">
+                <input
+                  id="confirm-password"
+                  type={showConfirmPassword ? "text" : "password"}
+                  placeholder="Confirm new password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  autoComplete="new-password"
+                  minLength={6}
+                  required
+                />
+                <button
+                  type="button"
+                  className="auth-password-toggle"
+                  onClick={() =>
+                    setShowConfirmPassword(!showConfirmPassword)
+                  }
+                  aria-label={
+                    showConfirmPassword ? "Hide password" : "Show password"
+                  }
+                >
+                  {showConfirmPassword ? (
+                    <EyeOff size={20} />
+                  ) : (
+                    <Eye size={20} />
+                  )}
                 </button>
               </div>
             </>
           )}
+
+          {!isRegister &&
+            !isOtpVerification &&
+            !isRecoveryMode && (
+              <p className="auth-switch">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsForgotPassword(true);
+                    clearMessages();
+                  }}
+                >
+                  Forgot Password?
+                </button>
+              </p>
+            )}
 
           {error && <p className="auth-error">{error}</p>}
 
@@ -228,42 +414,62 @@ function Auth() {
               ? "Please wait..."
               : isOtpVerification
                 ? "Verify Email →"
-                : isRegister
-                  ? "Create Account →"
-                  : "Login Securely →"}
+                : isForgotPassword
+                  ? "Send Reset OTP →"
+                  : isResetPassword
+                    ? "Reset Password →"
+                    : isRegister
+                      ? "Create Account →"
+                      : "Login Securely →"}
           </button>
 
-          {isOtpVerification ? (
+          {isOtpVerification && (
             <p className="auth-switch">
-              Wrong email?
+              Didn't receive the OTP?
               <button
                 type="button"
-                onClick={() => {
-                  setIsOtpVerification(false);
-                  setIsRegister(true);
-                  setOtp("");
-                  setError("");
-                  setSuccess("");
-                }}
+                onClick={handleResendOtp}
+                disabled={resending || loading}
               >
-                Go back
-              </button>
-            </p>
-          ) : (
-            <p className="auth-switch">
-              {isRegister ? "Already registered?" : "New to Gao-Connect?"}
-              <button
-                type="button"
-                onClick={() => {
-                  setIsRegister(!isRegister);
-                  setError("");
-                  setSuccess("");
-                }}
-              >
-                {isRegister ? "Login" : "Create account"}
+                {resending ? "Sending..." : "Resend OTP"}
               </button>
             </p>
           )}
+
+          {isRecoveryMode && (
+            <p className="auth-switch">
+              Already remember your password?
+              <button
+                type="button"
+                onClick={() => {
+                  setIsForgotPassword(false);
+                  setIsResetPassword(false);
+                  setOtp("");
+                  setNewPassword("");
+                  setConfirmPassword("");
+                  clearMessages();
+                }}
+              >
+                Back to Login
+              </button>
+            </p>
+          )}
+
+          {!isOtpVerification &&
+            !isRecoveryMode && (
+              <p className="auth-switch">
+                {isRegister ? "Already registered?" : "New to Gao-Connect?"}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsRegister(!isRegister);
+                    clearMessages();
+                  }}
+                >
+                  {isRegister ? "Login" : "Create account"}
+                </button>
+              </p>
+            )}
 
           <p className="auth-security">
             🔒 Your account is protected by secure authentication.
