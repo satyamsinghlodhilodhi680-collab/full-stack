@@ -16,17 +16,20 @@ import cors from "cors";
 
 const app = express();
 
+
 const allowedOrigins = [
     "http://localhost:5173",
     "https://frontend-eta-nine-34.vercel.app",
     "https://frontend-git-main-portfolio-cc54.vercel.app",
-    "https://frontend-pu6k14dka-portfolio-cc54.vercel.app"
+    "https://frontend-pu6k14dka-portfolio-cc54.vercel.app",
+    "https://frontend-nugwmdv6g-portfolio-cc54.vercel.app"
 ];
 
 app.use(cors({
     origin: allowedOrigins,
     credentials: true
 }));
+
 
 
 
