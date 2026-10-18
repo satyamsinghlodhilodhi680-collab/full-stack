@@ -16,7 +16,6 @@ import cors from "cors";
 
 const app = express();
 
-c
 const allowedOrigins = [
     "http://localhost:5173",
     "https://frontend-eta-nine-34.vercel.app",
