@@ -19,14 +19,13 @@ const app = express();
 
 import cors from "cors";
 
-app.use(cors({
-    origin: [
-        "http://localhost:5173",
-        "https://gao-village-eight.vercel.app",
-        "https://frontend-eta-nine-34.vercel.app"
-    ],
-    credentials: true
-}));
+app.use(
+    cors({
+        origin: "http://localhost:5173",
+        credentials: true
+    })
+);
+;
 
 
 
