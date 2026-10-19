@@ -22,8 +22,7 @@ const app = express();
 app.use(cors({
     origin: [
         "http://localhost:5173",
-        "https://full-stack-frontend-six.vercel.app",
-        "https://full-stack-frontend-km0k5r8gl-portfolio-cc54.vercel.app"
+       "https://mern-stack-hlt74xbgq-portfolio-cc54.vercel.app"
     ],
     credentials: true
 }));
